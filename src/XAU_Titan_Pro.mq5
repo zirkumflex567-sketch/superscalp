@@ -38,23 +38,12 @@ input bool     InpUseTakeProfit           = false;       // Fester Take Profit (
 input double   InpTPRatio                 = 0.0;         // TP-Multiplikator (0.0 = Unlimitierter Runner Modus)
 input bool     InpUseBreakEven            = false;       // Vorzeitiger Break-Even (false = Choket Gold nicht)
 input double   InpBETriggerUSD            = 40.0;        // BE Trigger in USD
-input double   InpBELockUSD               = 5.0;         // Gesicherter Gewinn in USD bei Break-Even
-input bool     InpUseTrendInvalidationExit= false;       // Notausstieg bei Trendbruch (Schützt vor -$150 Abstürzen)
-input double   InpInvalMinLossUSD         = 40.0;        // Min. Verlust in USD vor Trendbruch-Ausstieg
+input double   InpBELockUSD               = 15.0;        // Gesicherter Gewinn in USD bei Break-Even
 
 input group "=== 03 / Handelszeiten & Elite-Filter (Serverzeit) ==="
 input bool     InpFilterEliteHours        = true;        // Elite Zeitfenster aktiv
 input bool     InpEnableAsianSession      = true;        // Asien-Session aktiv (01:00-08:00) (Original: hochprofitabel!)
-input bool     InpAvoidNewsSpikeHours     = false;       // US-News/Opening-Chop meiden (15:00-17:00)
-input bool     InpPauseLunchChop          = false;       // Mittags-Chop Pause (11:00-13:00)
-input int      InpLunchStartHour          = 11;          // Start Mittagspause (Serverzeit)
-input int      InpLunchEndHour            = 13;          // Ende Mittagspause (Serverzeit)
-input bool     InpPauseLateEvening        = false;       // Spätabend-Pause (20:00-22:00)
-input int      InpLateEveningStartHour    = 20;          // Start Spätabend (Serverzeit)
-input int      InpLateEveningEndHour      = 22;          // Ende Spätabend (Serverzeit)
-input bool     InpFilterThursdayNews      = false;       // Donnerstags US-News Schutz (11:00-17:00)
-input int      InpThursdayPauseStartHour  = 11;          // Start Donnerstag Pause (Serverzeit)
-input int      InpThursdayPauseEndHour    = 17;          // Ende Donnerstag Pause (Serverzeit)
+input bool     InpAvoidNewsSpikeHours     = false;       // US-News/Opening-Chop meiden
 input int      InpTradeStartHour          = 1;           // Handelsstart Stunde (Serverzeit 01:00)
 input int      InpTradeStartMinute        = 0;           // Handelsstart Minute
 input int      InpTradeEndHour            = 23;          // Handelsende Stunde
@@ -66,7 +55,6 @@ input double   InpMaxDailyDrawdownPercent = 3.5;         // Max. Tagesverlust % 
 input double   InpMaxTotalDrawdownPercent = 9.0;         // Max. Gesamtverlust % (Notbremse vor 10.0% Regel)
 input bool     InpTotalDDBasedOnInitial   = true;        // Max Drawdown Basis (true = Statisch vom Startkapital wie Blueberry; false = Trailing)
 input bool     InpDailyLockoutUntilMidnight = true;      // Nach Tagesverlust (true = Pause bis Mitternacht; false = Sofort weiter traden)
-input double   InpManualDailyStartBalance = 0.0;         // Manuelle Tages-Start-Balance (0.0 = Auto aus Deals berechnen)
 input double   InpPhaseProfitTargetPct    = 0.0;         // Phasen-Ziel % (0.0 = Deaktiviert / Fortlaufend traden)
 
 input group "=== 05 / Trend-Momentum Indikatoren (M15 Basis) ==="
@@ -123,9 +111,6 @@ void SetupLiveExecution()
 //+------------------------------------------------------------------+
 double CalculateDailyStartBalance(datetime today_midnight)
 {
-   if(InpManualDailyStartBalance > 0.0)
-      return InpManualDailyStartBalance;
-
    double current_balance = AccountInfoDouble(ACCOUNT_BALANCE);
    double realized_today = 0.0;
 
@@ -270,18 +255,6 @@ bool IsWithinTradingWindow(const MqlDateTime &dt)
 
       // 2. US News Spike & London Fixing (Hours 15 to 17)
       if(InpAvoidNewsSpikeHours && (dt.hour >= 15 && dt.hour <= 17))
-         return false;
-
-      // 3. Mittags-Chop Pause (standardmäßig 11:00 bis 12:59)
-      if(InpPauseLunchChop && (dt.hour >= InpLunchStartHour && dt.hour < InpLunchEndHour))
-         return false;
-
-      // 4. Spätabend-Pause (standardmäßig 20:00 bis 21:59)
-      if(InpPauseLateEvening && (dt.hour >= InpLateEveningStartHour && dt.hour < InpLateEveningEndHour))
-         return false;
-
-      // 5. Donnerstags US-News Schutz (standardmäßig Donnerstags 11:00 bis 16:59)
-      if(InpFilterThursdayNews && dt.day_of_week == 4 && (dt.hour >= InpThursdayPauseStartHour && dt.hour < InpThursdayPauseEndHour))
          return false;
    }
 
@@ -596,43 +569,7 @@ void ManageOpenPositions(const MqlDateTime &dt)
       }
    }
 
-   // 2. Trend-Invalidation Emergency Exit (Optional: schützt vor -$150 Abstürzen, wenn M15-Trend bricht)
-   if(InpUseTrendInvalidationExit)
-   {
-      double trend_ema[1];
-      if(CopyBuffer(m_trend_ema_handle, 0, 0, 1, trend_ema) >= 1)
-      {
-         for(int i = total - 1; i >= 0; i--)
-         {
-            if(m_position.SelectByIndex(i))
-            {
-               if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
-               {
-                  double pos_profit = m_position.Profit() + m_position.Swap();
-                  // Nur auslösen, wenn Position bereits spürbar im Minus liegt (lässt normale Pullbacks atmen)
-                  if(pos_profit <= -InpInvalMinLossUSD)
-                  {
-                     double cur_price = (m_position.PositionType() == POSITION_TYPE_BUY) ? m_symbol.Bid() : m_symbol.Ask();
-                     bool invalidated = false;
-                     if(m_position.PositionType() == POSITION_TYPE_BUY && cur_price < trend_ema[0])
-                        invalidated = true;
-                     else if(m_position.PositionType() == POSITION_TYPE_SELL && cur_price > trend_ema[0])
-                        invalidated = true;
-
-                     if(invalidated)
-                     {
-                        PrintFormat("TREND-INVALIDATION EXIT: Position #%d geschlossen bei $%.2f Verlust (M15 EMA50 %.2f gebrochen)!",
-                                    m_position.Ticket(), pos_profit, trend_ema[0]);
-                        m_trade.PositionClose(m_position.Ticket());
-                     }
-                  }
-               }
-            }
-         }
-      }
-   }
-
-   // 3. Basket Evaluation
+   // 2. Basket Evaluation
    int my_positions = 0;
    ENUM_POSITION_TYPE basket_type = POSITION_TYPE_BUY;
    double total_profit_usd = 0.0;
@@ -655,7 +592,7 @@ void ManageOpenPositions(const MqlDateTime &dt)
    double current_price = (basket_type == POSITION_TYPE_BUY) ? m_symbol.Bid() : m_symbol.Ask();
    double avg_profit_per_pos = total_profit_usd / my_positions;
 
-   // 4. Dynamic Runner Exit: Price pulls back across Fast EMA after hitting realistic swing target (>= $25 USD)
+   // 3. Dynamic Runner Exit: Price pulls back across Fast EMA after hitting realistic swing target (>= $25 USD)
    bool close_basket = false;
    if(InpUseDynamicExit)
    {
@@ -671,7 +608,7 @@ void ManageOpenPositions(const MqlDateTime &dt)
       }
    }
 
-   // 5. Session End Profit Lock: Close and secure profits at session end (InpTradeEndHour)
+   // 4. Session End Profit Lock: Close and secure profits at session end (InpTradeEndHour)
    if(InpCloseInProfitAtSessionEnd && dt.hour >= InpTradeEndHour)
    {
       if(avg_profit_per_pos >= InpSessionEndMinProfitUSD)
