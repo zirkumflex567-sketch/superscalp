@@ -1,0 +1,17 @@
+# MetaTrader 5 Files
+*.log
+*.ini
+*.tmp
+*.bak
+*.cache
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python / Temp files
+__pycache__/
+*.pyc
+*.pyd
+.system_generated/
