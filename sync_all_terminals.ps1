@@ -10,8 +10,7 @@ foreach ($t in $terminals) {
     $testerPath = Join-Path $t.FullName "MQL5\Profiles\Tester"
     
     if (Test-Path $expertsPath) {
-        Copy-Item -Path "$sourceDir\XAU_Titan_Pro.ex5", "$sourceDir\XAU_Titan_Pro.mq5" -Destination $expertsPath -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "$sourceDir\XAU_Titan_Ultra.*" -Destination $expertsPath -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "$sourceDir\XAU_Titan_*.*" -Destination $expertsPath -Force -ErrorAction SilentlyContinue
         foreach ($s in $setFiles) {
             Copy-Item -Path $s.FullName -Destination $expertsPath -Force -ErrorAction SilentlyContinue
         }
@@ -24,7 +23,7 @@ foreach ($t in $terminals) {
     }
 }
 
-Copy-Item -Path "$sourceDir\XAU_Titan_Pro.*" -Destination "$env:USERPROFILE\Downloads\" -Force -ErrorAction SilentlyContinue
-Copy-Item -Path "$sourceDir\XAU_Titan_Pro.*" -Destination "$env:USERPROFILE\Downloads\testing\" -Force -ErrorAction SilentlyContinue
+Copy-Item -Path "$sourceDir\XAU_Titan_*.*" -Destination "$env:USERPROFILE\Downloads\" -Force -ErrorAction SilentlyContinue
+Copy-Item -Path "$sourceDir\XAU_Titan_*.*" -Destination "$env:USERPROFILE\Downloads\testing\" -Force -ErrorAction SilentlyContinue
 
 Write-Host "Done! All MT5 instances are up to date."
