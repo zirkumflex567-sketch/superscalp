@@ -162,6 +162,53 @@ double CalculateDailyStartBalance(datetime today_midnight)
 }
 
 //+------------------------------------------------------------------+
+//| Get Last Entry Time from Open Positions and Deal History         |
+//+------------------------------------------------------------------+
+datetime GetLastEntryTimeForMagic()
+{
+   datetime last_time = 0;
+
+   // 1. Check currently open positions for this magic number
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         {
+            datetime pos_time = (datetime)m_position.Time();
+            if(pos_time > last_time)
+               last_time = pos_time;
+         }
+      }
+   }
+
+   // 2. Check deals in recent history (past 48 hours)
+   datetime now = TimeCurrent();
+   if(HistorySelect(now - 172800, now))
+   {
+      int deals = HistoryDealsTotal();
+      for(int i = deals - 1; i >= 0; i--)
+      {
+         ulong ticket = HistoryDealGetTicket(i);
+         if(ticket > 0)
+         {
+            long magic = HistoryDealGetInteger(ticket, DEAL_MAGIC);
+            string sym = HistoryDealGetString(ticket, DEAL_SYMBOL);
+            long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+            if(magic == InpMagicNumber && sym == _Symbol && entry == DEAL_ENTRY_IN)
+            {
+               datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+               if(deal_time > last_time)
+                  last_time = deal_time;
+            }
+         }
+      }
+   }
+
+   return last_time;
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -196,9 +243,14 @@ int OnInit()
    m_current_day_date  = StringToTime(StringFormat("%04d.%02d.%02d", dt.year, dt.mon, dt.day));
    m_day_start_balance = CalculateDailyStartBalance(m_current_day_date);
 
+   // Live Restart Protection: Synchronize bar time and last entry time from history/positions
+   m_last_m15_bar_time = iTime(_Symbol, m_calc_timeframe, 0);
+   m_last_entry_time   = GetLastEntryTimeForMagic();
+
    PrintFormat("=== XAU TITAN ULTRA v8.0 INITIALIZED ===");
-   PrintFormat("Symbol: %s | Timeframe: M15 | Balance: $%.2f | Day Start Balance: $%.2f",
-               _Symbol, m_initial_account_balance, m_day_start_balance);
+   PrintFormat("Symbol: %s | Timeframe: M15 | Balance: $%.2f | Day Start: $%.2f | Last Entry: %s",
+               _Symbol, m_initial_account_balance, m_day_start_balance,
+               (m_last_entry_time > 0) ? TimeToString(m_last_entry_time, TIME_DATE|TIME_MINUTES|TIME_SECONDS) : "None");
    PrintFormat("Hebel 1 (Trend Invalidation): %s | Hebel 2 (Max SL): %d pts | Hebel 3 (Soft Profit Lock): %s (Trigger $%.1f)",
                InpUseTrendInvalidationExit ? "ON" : "OFF", InpMaxSLPoints, InpUseSoftProfitLock ? "ON" : "OFF", InpSoftLockTriggerUSD);
 

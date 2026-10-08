@@ -139,6 +139,53 @@ double CalculateDailyStartBalance(datetime today_midnight)
 }
 
 //+------------------------------------------------------------------+
+//| Get Last Entry Time from Open Positions and Deal History         |
+//+------------------------------------------------------------------+
+datetime GetLastEntryTimeForMagic()
+{
+   datetime last_time = 0;
+
+   // 1. Check currently open positions for this magic number
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         {
+            datetime pos_time = (datetime)m_position.Time();
+            if(pos_time > last_time)
+               last_time = pos_time;
+         }
+      }
+   }
+
+   // 2. Check deals in recent history (past 48 hours)
+   datetime now = TimeCurrent();
+   if(HistorySelect(now - 172800, now))
+   {
+      int deals = HistoryDealsTotal();
+      for(int i = deals - 1; i >= 0; i--)
+      {
+         ulong ticket = HistoryDealGetTicket(i);
+         if(ticket > 0)
+         {
+            long magic = HistoryDealGetInteger(ticket, DEAL_MAGIC);
+            string sym = HistoryDealGetString(ticket, DEAL_SYMBOL);
+            long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+            if(magic == InpMagicNumber && sym == _Symbol && entry == DEAL_ENTRY_IN)
+            {
+               datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+               if(deal_time > last_time)
+                  last_time = deal_time;
+            }
+         }
+      }
+   }
+
+   return last_time;
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -172,8 +219,14 @@ int OnInit()
    m_day_start_balance       = CalculateDailyStartBalance(m_current_day_date);
    m_peak_equity             = AccountInfoDouble(ACCOUNT_EQUITY);
 
-   PrintFormat("XAU_Titan_Pro v6.0 initialized. M15 High-Profit Runner Engine. Daily Start: $%.2f",
-               m_day_start_balance);
+   // Live Restart Protection: Synchronize bar time and last entry time from history/positions
+   m_last_m15_bar_time = iTime(_Symbol, m_calc_timeframe, 0);
+   m_last_entry_time   = GetLastEntryTimeForMagic();
+
+   PrintFormat("XAU_Titan_Pro initialized. Daily Start: $%.2f | Last Entry: %s | Current Bar: %s",
+               m_day_start_balance,
+               (m_last_entry_time > 0) ? TimeToString(m_last_entry_time, TIME_DATE|TIME_MINUTES|TIME_SECONDS) : "None",
+               TimeToString(m_last_m15_bar_time, TIME_DATE|TIME_MINUTES));
    return INIT_SUCCEEDED;
 }
 
