@@ -24,23 +24,6 @@ The EA executes a **swing momentum and trend-pullback strategy** exclusively on 
 
 ---
 
-## 📊 Backtest Performance (100% Real Ticks)
-
-Tested across 2026 on real tick data (IC Markets / Prop Firm environment) with **0.5% dynamic risk**:
-
-| Metric | Result |
-| :--- | :--- |
-| **Initial Deposit** | $10,000.00 |
-| **Total Net Profit** | **+$5,251.45** (+52.5%) |
-| **Profit Factor** | **1.30** |
-| **Win Rate** | **63.84%** (422 wins / 239 losses) |
-| **Total Trades** | 661 trades |
-| **Average Trade Duration** | 19 hours 32 minutes |
-| **Average Win** | $53.79 (Max Win: +$219.78) |
-| **Average Loss** | -$72.89 (Max Loss: -$151.73) |
-| **Prop Firm Rule Breaches** | **0** (Fully passed / 100% compliant) |
-
----
 
 ## 🧠 Strategy & Algorithm Breakdown
 
